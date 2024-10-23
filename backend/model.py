@@ -28,3 +28,4 @@ class Personagem(BaseModel):
     gosta: Optional[str] = None
     nao_gosta: Optional[str] = None
     imagem: Optional[str] = None
+    
