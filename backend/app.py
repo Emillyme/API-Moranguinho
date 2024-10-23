@@ -1,8 +1,12 @@
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, Depends, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from model import Personagem, PersonagemDB
+from sqlalchemy.orm import Session
+from databaseConfig import engine, get_db
 import uvicorn
-from model import Personagem  # model
-from typing import List, Optional
+
+# Inicializa o banco de dados criando as tabelas
+PersonagemDB.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -14,69 +18,69 @@ app.add_middleware(
     allow_origins=["http://localhost:3000"]
 )
 
-personagens = [
-    {"id": 1, "nome": "Aragorn", "idade": 87, "genero": "Masculino", "objetivo": "Ser Rei", "gosta": "Lutar", "nao_gosta": "Traição"},
-    {"id": 2, "nome": "Frodo", "idade": 50, "genero": "Masculino", "objetivo": "Destruir o anel", "gosta": "Amigos", "nao_gosta": "O anel"},
-    {"id": 3, "nome": "Legolas", "idade": 2931, "genero": "Masculino", "objetivo": "Proteger a Terra-média", "gosta": "Arco e flecha", "nao_gosta": "Orcs"}
-]
-
 @app.get('/')
 async def get_data():
     return {'body': 'Emilly ama comer tomate que nem maçã'}
 
 
-@app.get('/personagens', response_model=List[Personagem])
-async def get_personagens():
+@app.get('/personagens', response_model=list[Personagem])
+async def get_personagens(db: Session = Depends(get_db)):
+    personagens = db.query(PersonagemDB).all()
     return personagens
 
 
-@app.get('/personagens/{personagem_id}')
-async def get_personagem(personagem_id: int):
-    personagem = next((p for p in personagens if p['id'] == personagem_id), None)
+@app.get('/personagens/{personagem_id}', response_model=Personagem)
+async def get_personagem(personagem_id: int, db: Session = Depends(get_db)):
+    personagem = db.query(PersonagemDB).filter(PersonagemDB.id == personagem_id).first()
     if personagem:
         return personagem
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personagem não encontrado")
 
 
 @app.post('/personagens')
-async def add_personagem(p: Personagem):
-    try: 
-        next_id = len(personagens) + 1
-        p.id = next_id
-        personagens.append(p.dict())
-        return p
-    except KeyError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Já existe um personagem com esse ID')
-
+async def add_personagem(p: Personagem, db: Session = Depends(get_db)):
+    db_personagem = PersonagemDB(**p.dict(exclude_unset=True))
+    db.add(db_personagem)
+    db.commit()
+    db.refresh(db_personagem)
+    return db_personagem
 
 @app.put('/personagens/{personagem_id}', response_model=Personagem)
-async def put_personagem(personagem_id: int, p: Personagem): # Personagem: Model, onde a pessoa vai escrever
-    for i, personagem in enumerate(personagens):
-        if personagem['id'] == personagem_id:
-            personagens[i] = p.dict()  # Atualiza o personagem
-            p.id = personagem_id  # Mantém o ID
-            return p
+async def put_personagem(personagem_id: int, p: Personagem, db: Session = Depends(get_db)):
+    personagem = db.query(PersonagemDB).filter(PersonagemDB.id == personagem_id).first()
+    if personagem:
+        for key, value in p.dict(exclude_unset=True).items():
+            setattr(personagem, key, value)
+        db.commit()
+        db.refresh(personagem)
+        return personagem
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personagem não encontrado")
 
 
 @app.delete('/personagens/{personagem_id}')
-async def del_personagem(personagem_id: int):
-    for i, personagem in enumerate(personagens):
-        if personagem['id'] == personagem_id:
-            del personagens[i]
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
+async def del_personagem(personagem_id: int, db: Session = Depends(get_db)):
+    personagem = db.query(PersonagemDB).filter(PersonagemDB.id == personagem_id).first()
+    if personagem:
+        db.delete(personagem)
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personagem não encontrado")
 
 
 @app.patch('/personagens/{personagem_id}', response_model=Personagem)
-async def patch_personagem(personagem_id: int, p: Personagem):
-    for i, personagem in enumerate(personagens):
-        if personagem['id'] == personagem_id:
-            for key, value in p.dict(exclude_unset=True).items():  # para garantir que apenas os campos fornecidos sejam atualizados.
-                                                                 # Sobre oq é key e value:  se a key é "nome", e o valor é "Aragorn"
-                personagens[i - 1][key] = value
-            return personagens[i - 1]
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personagem não encontrado")
+async def patch_personagem(personagem_id: int, p: Personagem, db: Session = Depends(get_db)):
+    personagem = db.query(PersonagemDB).filter(PersonagemDB.id == personagem_id).first()
+    
+    if personagem is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personagem não encontrado")
+    
+    # Atualiza apenas os campos fornecidos no request
+    for key, value in p.dict(exclude_unset=True).items():
+        setattr(personagem, key, value)
+    
+    db.commit()
+    db.refresh(personagem)  # Atualiza o personagem após o commit para garantir os dados atualizados
+    return personagem
 
 
 if __name__ == '__main__':
