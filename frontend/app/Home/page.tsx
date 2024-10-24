@@ -1,38 +1,29 @@
-"use client"; // Para marcar o componente como Client Component
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-
-// Definindo a interface do personagem para garantir que o TypeScript entenda o formato dos dados
-interface Personagem {
-  id: number;
-  nome: string;
-  imagem: string;  // Assumindo que a imagem é uma URL string
-  idade: number;
-  gosta: string;
-  nao_gosta: string;
-}
+"use client";
+import Image from 'next/image';
 
 export default function Home() {
-  const [personagens, setPersonagens] = useState<Personagem[]>([]); // Definindo o tipo do estado
-
-  useEffect(() => {
-    fetch('http://localhost:9000/personagens')
-      .then(response => response.json())
-      .then(data => setPersonagens(data))
-      .catch(error => console.error('Erro ao buscar personagens:', error));
-  }, []);
-
   return (
-    <div>
-      {personagens.map(personagem => (
-        <div key={personagem.id}>
-          <h2>{personagem.nome}</h2>
-          <img src={personagem.imagem} alt={personagem.nome} />
-          <p>Idade: {personagem.idade}</p>
-          <p>Gosta: {personagem.gosta}</p>
-          <p>Não gosta: {personagem.nao_gosta}</p>
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="container mx-auto p-4">
+        <header className='flex justify-between items-center'>
+          <Image
+            src='/images/moranguin.png'
+            alt="Moranguin"
+            width={600} 
+            height={300}
+          />
+          <li className='flex flex-col items-center'>
+            <Image
+              src='/images/logo.png'
+              alt='logo'
+              width={650} 
+              height={0}
+              className='mb-10'
+            />
+            <h1 className='p-[10px] px-[70px] text-2xl text-center bg-pink text-white bold'>API</h1>
+          </li>
+        </header>
+      </div>
+    </>
   );
 }
